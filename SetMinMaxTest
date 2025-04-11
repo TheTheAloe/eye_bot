@@ -1,0 +1,67 @@
+    import time
+    import math
+    import smbus
+
+    class PCA9685:
+        __MODE1 = 0x00
+        __PRESCALE = 0xFE
+        __LED0_ON_L = 0x06
+        __LED0_ON_H = 0x07
+        __LED0_OFF_L = 0x08
+        __LED0_OFF_H = 0x09
+
+        def __init__(self, address=0x40):
+            self.bus = smbus.SMBus(1)
+            self.address = address
+            self.write(self.__MODE1, 0x00)
+
+        def write(self, reg, value):
+            self.bus.write_byte_data(self.address, reg, value)
+
+        def setPWMFreq(self, freq):
+            prescaleval = 25000000.0 / 4096.0 / float(freq) - 1
+            prescale = math.floor(prescaleval + 0.5)
+            oldmode = self.bus.read_byte_data(self.address, self.__MODE1)
+            self.write(self.__MODE1, oldmode & 0x7F | 0x10)
+            self.write(self.__PRESCALE, int(prescale))
+            self.write(self.__MODE1, oldmode)
+            time.sleep(0.005)
+            self.write(self.__MODE1, oldmode | 0x80)
+
+        def setServoAngle(self, channel, angle):
+            angle = max(0, min(180, angle))  # Clamp angle
+            pulse = 500 + (angle / 180.0) * 2000  # Convert angle to pulse width (µs)
+            pulse_length = int(pulse * 4096 / 20000)  # Convert to 12-bit value
+            self.setPWM(channel, 0, pulse_length)
+
+        def setPWM(self, channel, on, off):
+            self.write(self.__LED0_ON_L + 4 * channel, on & 0xFF)
+            self.write(self.__LED0_ON_H + 4 * channel, on >> 8)
+            self.write(self.__LED0_OFF_L + 4 * channel, off & 0xFF)
+            self.write(self.__LED0_OFF_H + 4 * channel, off >> 8)
+
+    # Initialize PCA9685
+    pwm = PCA9685()
+    pwm.setPWMFreq(50)
+
+    while True:
+        # Move both servos together
+        pwm.setServoAngle(2, 100)#close eye
+        pwm.setServoAngle(15,80)
+        pwm.setServoAngle(0, 90)
+        pwm.setServoAngle(1, 90)#move middle
+        time.sleep(1)
+        pwm.setServoAngle(2, 170)
+        pwm.setServoAngle(15,0)#open eye
+        pwm.setServoAngle(0, 30)
+        pwm.setServoAngle(1, 90)#move bottom left
+        time.sleep(1)
+        pwm.setServoAngle(0, 140)#move bottom right
+        pwm.setServoAngle(1, 90)
+        time.sleep(1)
+        pwm.setServoAngle(0, 120)#move top right
+        pwm.setServoAngle(1, 80)
+        time.sleep(1)
+        pwm.setServoAngle(0, 60)#move top left
+        pwm.setServoAngle(1, 80)
+        time.sleep(1)
